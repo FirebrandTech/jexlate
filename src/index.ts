@@ -1,18 +1,22 @@
 import jexl from 'jexl';
+import Expression from 'jexl/Expression';
 import { Transform, TransformCallback } from 'node:stream';
 
 // Define a type for individual fields in the template
 type TemplateField = {
-  from: string;
-  if?: string;
+  from: string | Expression;
+  if?: string | Expression;
   required?: boolean;
   as?: 'string' | 'number' | 'boolean' | 'json';
+  raw?: Record<string, string>;
 };
 
 // Define a type for arrays in the template
 type TemplateArray = {
   from: string; // Must contain '[]' to indicate an array
   values: TemplateMapping; // The structure for each item in the array
+  raw: Record<string, string>;
+  if?: string | Expression;
 };
 
 // Define a type for objects (nested fields) in the template
@@ -50,7 +54,7 @@ export class Jexlate<T extends TemplateMapping> {
 
   constructor(template: T, config?: JexlateConfig) {
     const { tranforms, functions, binaryOps } = config || {};
-    this.template = template as T;
+
     this.requiredCollector = [];
 
     // Add custom functions to Jexl
@@ -77,9 +81,56 @@ export class Jexlate<T extends TemplateMapping> {
         );
       }
     }
+
+    // Compile the template expressions (from and if) for better performance
+    this.template = this.compileTemplate(template as TemplateMapping) as T;
   }
 
-  parse(data: any): InferOutput<T> {
+  private compileTemplate(template: TemplateMapping): TemplateMapping {
+    // Ensure template is an object before trying to access properties
+    if (typeof template === 'object' && template !== null) {
+      if ('from' in template && typeof template.from === 'string') {
+        // Store the original 'from' string before compiling
+        const originalFrom = template.from;
+        template.raw = {
+          ...(template.raw || {}),
+          from: originalFrom,
+        };
+
+        // Compile the 'from' expression
+        template.from = jexl.compile(originalFrom);
+      }
+
+      if ('if' in template && typeof template.if === 'string') {
+        // Store the original 'if' string before compiling
+        const originalIf = template.if;
+        template.raw = {
+          ...(template.raw || {}),
+          if: originalIf,
+        };
+
+        // Compile the 'if' expression
+        template.if = jexl.compile(originalIf);
+      }
+
+      // Recursively compile values for arrays
+      if ('values' in template && typeof template.values === 'object') {
+        template.values = this.compileTemplate(template.values);
+      }
+
+      // Recursively compile each key in the object (skip raw)
+      for (const key in template) {
+        if (template.hasOwnProperty(key) && key !== 'raw') {
+          // Only compile properties other than 'raw' to avoid reprocessing
+          template[key] = this.compileTemplate(template[key]);
+        }
+      }
+    }
+
+    return template;
+  }
+
+  public parse(data: any): InferOutput<T> {
     const result = this.transform(this.template, data);
 
     // Check if required fields are missing or invalid
@@ -119,17 +170,25 @@ export class Jexlate<T extends TemplateMapping> {
     data: Record<string, any>,
     path: string
   ): any {
-    const arrayKey = template.from.replace('[]', ''); // Strip out `[]` to get the array key
-    const arrayData = data[arrayKey]; // Directly access the array in the data object
+    // Use the raw 'from' field to get the array key
+    const arrayKey = template.raw?.from.replace('[]', '');
+
+    // Get the array data from the input
+    const arrayData = data[arrayKey];
 
     if (!Array.isArray(arrayData)) {
-      throw new Error(`Expected an array but got: ${typeof arrayData}`);
+      throw new Error(
+        `Expected an array for key "${arrayKey}" but got: ${typeof arrayData}`
+      );
     }
 
     const arr: any[] = [];
+
+    // Loop through each item in the array and transform it
     for (const item of arrayData) {
       arr.push(this.transform(template.values, item, path));
     }
+
     return arr;
   }
 
@@ -139,56 +198,67 @@ export class Jexlate<T extends TemplateMapping> {
     path: string
   ): any {
     try {
-      // Handle the case where the 'from' field uses the 'value(foo)' syntax
-      const valueMatch = template.from.match(/^value\((.*)\)$/);
+      // Use raw.from for literals and error messages
+      const expressionString = template.raw?.from || '';
+
+      // Handle literal expressions before any Jexl evaluation
+      const valueMatch = expressionString.match(/^value\((.*)\)$/);
       if (valueMatch) {
-        return this.coerceType(valueMatch[1], template.as); // Coerce the value inside parentheses
+        return this.coerceType(valueMatch[1], template.as); // Handle 'value(foo)'
       }
 
-      // Handle the case where the 'from' field uses the 'boolean(true|false)' syntax
-      const booleanMatch = template.from.match(/^boolean\((true|false)\)$/);
-      if (booleanMatch) {
-        return booleanMatch[1] === 'true'; // Return the boolean value (true or false)
+      const stringMatch = expressionString.match(/^string\((.*)\)$/);
+      if (stringMatch) {
+        return String(stringMatch[1]); // Handle 'string(foo)'
       }
 
-      // Handle the case where the 'from' field uses the 'null()' syntax
-      if (template.from === 'null()') {
-        return null; // Return null
-      }
-
-      // Handle the case where the 'from' field uses the 'number(43)' syntax
-      const numberMatch = template.from.match(/^number\((\d+)\)$/);
+      const numberMatch = expressionString.match(/^number\((.*)\)$/);
       if (numberMatch) {
-        return Number(numberMatch[1]); // Return the number inside parentheses (e.g., 43)
+        return Number(numberMatch[1]); // Handle 'number(42)'
       }
 
-      // Evaluate the 'if' condition if it exists
+      const booleanMatch = expressionString.match(/^boolean\((true|false)\)$/);
+      if (booleanMatch) {
+        return booleanMatch[1] === 'true'; // Handle 'boolean(true)' or 'boolean(false)'
+      }
+
+      if (expressionString === 'null()') {
+        return null; // Handle 'null()'
+      }
+
+      // Evaluate the 'if' condition if it exists (compiled or string)
       if (template.if) {
-        const condition = jexl.evalSync(template.if, data);
+        const condition =
+          typeof template.if === 'object'
+            ? template.if.evalSync(data) // Compiled expression
+            : jexl.evalSync(template.if, data); // String expression
         if (!condition) {
-          // Skip adding the field if 'if' condition is false and not required
+          // Skip the field if 'if' condition is false and not required
           if (template.required) {
             this.requiredCollector.push(path ? `${path}` : 'unknown');
           }
-          return undefined; // Skip the field by returning undefined
+          return undefined; // Skip the field
         }
       }
 
-      // If no 'if' condition or condition is true, proceed with field evaluation
-      const dataToEvaluate = jexl.evalSync(template.from, data);
+      // Evaluate the 'from' expression (either compiled or string)
+      const dataToEvaluate =
+        typeof template.from === 'object'
+          ? template.from.evalSync(data) // Compiled expression
+          : jexl.evalSync(template.from, data); // String expression
 
       if (dataToEvaluate === null || dataToEvaluate === undefined) {
         if (template.required) {
           this.requiredCollector.push(path ? `${path}` : 'unknown');
         }
-        return undefined; // Skip if data is null/undefined and not required
+        return undefined; // Skip if data is null/undefined
       }
 
       // Coerce the type based on the 'as' property
       return this.coerceType(dataToEvaluate, template.as);
     } catch (e) {
       throw new Error(
-        `Failed to evaluate expression: ${template.from}. Error: ${e.message}`
+        `Failed to evaluate expression: ${template.raw?.from || '[unknown]'}. Error: ${e.message}`
       );
     }
   }
@@ -234,16 +304,21 @@ export class Jexlate<T extends TemplateMapping> {
     data: any,
     path: string = ''
   ): any {
-    if (typeof template === 'object' && template.from) {
-      if (typeof template.from === 'string' && template.from.includes('[]')) {
+    // Check if template is an object and has a 'from' field
+    if (typeof template === 'object' && template.raw?.from) {
+      // Check for array notation '[]' in the raw 'from' field
+      if (template.raw.from.toString().includes('[]')) {
         if ('values' in template) {
+          // Handle arrays using the 'transformArray' method
           return this.transformArray(template as TemplateArray, data, path);
         } else {
           throw new Error(`Invalid template: ${JSON.stringify(template)}`);
         }
       }
+      // Handle regular field transformations
       return this.transformField(template as TemplateField, data, path);
     } else if (typeof template === 'object') {
+      // Handle nested objects
       return this.transformObject(template as TemplateObject, data, path);
     }
 
