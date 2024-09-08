@@ -1,3 +1,5 @@
+[![Tests](https://github.com/FirebrandTech/jexlate/actions/workflows/tests.yml/badge.svg)](https://github.com/FirebrandTech/jexlate/actions/workflows/tests.yml)
+
 # Jexlate
 
 Format and validate JSON data with ease (oh... and [Jexl](https://www.npmjs.com/package/jexl/v/0.1.0)). Jexlate uses Jexl to allow for complex tranformations and translations able to be stored in a JSON object.
