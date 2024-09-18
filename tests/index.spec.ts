@@ -119,7 +119,7 @@ describe('Jexlate', () => {
         },
       },
       {
-        tranforms: {
+        transforms: {
           uppercase: (value) => value.toUpperCase(),
         },
       }

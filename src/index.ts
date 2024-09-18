@@ -52,7 +52,7 @@ export type JexlateBinaryOp = Record<
   }
 >;
 export interface JexlateConfig {
-  tranforms?: JexlateFunction;
+  transforms?: JexlateFunction;
   functions?: JexlateTransform;
   binaryOps?: JexlateBinaryOp;
 }
@@ -62,7 +62,7 @@ export class Jexlate<T extends TemplateMapping> {
   private requiredCollector: string[];
 
   constructor(template: T, config?: JexlateConfig) {
-    const { tranforms, functions, binaryOps } = config || {};
+    const { transforms, functions, binaryOps } = config || {};
 
     this.requiredCollector = [];
 
@@ -74,9 +74,9 @@ export class Jexlate<T extends TemplateMapping> {
     }
 
     // Add custom transforms to Jexl
-    if (tranforms) {
-      for (const transform in tranforms) {
-        jexl.addTransform(transform, tranforms[transform]);
+    if (transforms) {
+      for (const transform in transforms) {
+        jexl.addTransform(transform, transforms[transform]);
       }
     }
 
