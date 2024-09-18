@@ -3,7 +3,7 @@ import Expression from 'jexl/Expression';
 import { Transform, TransformCallback } from 'node:stream';
 
 // Define a type for individual fields in the template
-type TemplateField = {
+export type TemplateField = {
   from: string | Expression;
   if?: string | Expression;
   required?: boolean;
@@ -12,7 +12,7 @@ type TemplateField = {
 };
 
 // Define a type for arrays in the template
-type TemplateArray = {
+export type TemplateArray = {
   from: string; // Must contain '[]' to indicate an array
   values: TemplateMapping; // The structure for each item in the array
   raw: Record<string, string>;
@@ -20,15 +20,15 @@ type TemplateArray = {
 };
 
 // Define a type for objects (nested fields) in the template
-type TemplateObject = {
+export type TemplateObject = {
   [key: string]: TemplateMapping;
 };
 
 // Combine the types into a single type for the template
-type TemplateMapping = TemplateField | TemplateArray | TemplateObject;
+export type TemplateMapping = TemplateField | TemplateArray | TemplateObject;
 
 // Helper type to infer the structure of the output
-type InferOutput<T> = T extends TemplateField
+export type InferOutput<T> = T extends TemplateField
   ? any
   : T extends TemplateArray
     ? InferOutput<T['values']>[]
@@ -36,16 +36,25 @@ type InferOutput<T> = T extends TemplateField
       ? { [K in keyof T]: InferOutput<T[K]> }
       : T;
 
-interface JexlateConfig {
-  tranforms?: Record<string, (value: any, ...args: any[]) => any>;
-  functions?: Record<string, (value: any, ...args: any[]) => any>;
-  binaryOps?: Record<
-    string,
-    {
-      precedence: number;
-      fn: (left: any, right: any) => any;
-    }
-  >;
+export type JexlateFunction = Record<
+  string,
+  (value: any, ...args: any[]) => any
+>;
+export type JexlateTransform = Record<
+  string,
+  (value: any, ...args: any[]) => any
+>;
+export type JexlateBinaryOp = Record<
+  string,
+  {
+    precedence: number;
+    fn: (left: any, right: any) => any;
+  }
+>;
+export interface JexlateConfig {
+  tranforms?: JexlateFunction;
+  functions?: JexlateTransform;
+  binaryOps?: JexlateBinaryOp;
 }
 
 export class Jexlate<T extends TemplateMapping> {
