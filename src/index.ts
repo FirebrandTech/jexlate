@@ -9,6 +9,7 @@ export type TemplateField = {
   required?: boolean;
   as?: 'string' | 'number' | 'boolean' | 'json';
   raw?: Record<string, string>;
+  validate?: string;
 };
 
 // Define a type for arrays in the template
@@ -60,11 +61,13 @@ export interface JexlateConfig {
 export class Jexlate<T extends TemplateMapping> {
   private template: T;
   private requiredCollector: string[];
+  private validationCollector: Record<string, Record<string, string>>[];
 
   constructor(template: T, config?: JexlateConfig) {
     const { transforms, functions, binaryOps } = config || {};
 
     this.requiredCollector = [];
+    this.validationCollector = [];
 
     // Add custom functions to Jexl
     if (functions) {
@@ -142,10 +145,16 @@ export class Jexlate<T extends TemplateMapping> {
   public parse(data: any): InferOutput<T> {
     const result = this.transform(this.template, data);
 
-    // Check if required fields are missing or invalid
-    if (this.requiredCollector.length > 0) {
+    // Check if validation errors occured or required fields are missing
+    if (
+      this.requiredCollector.length > 0 ||
+      this.validationCollector.length > 0
+    ) {
       throw new Error(
-        `Required fields are missing or invalid: ${this.requiredCollector.join(', ')}`
+        JSON.stringify({
+          required: this.requiredCollector,
+          invalid: this.validationCollector,
+        })
       );
     }
 
@@ -263,11 +272,21 @@ export class Jexlate<T extends TemplateMapping> {
         return undefined; // Skip if data is null/undefined
       }
 
+      if (template.validate) {
+        if (!jexl.evalSync(template.validate, data)) {
+          this.validationCollector.push(
+            path
+              ? { [path]: { test: template.validate, value: dataToEvaluate } }
+              : { unknown: { test: template.validate, value: dataToEvaluate } }
+          );
+        }
+      }
+
       // Coerce the type based on the 'as' property
       return this.coerceType(dataToEvaluate, template.as);
     } catch (e) {
       throw new Error(
-        `Failed to evaluate expression: ${template.raw?.from || '[unknown]'}. Error: ${e.message}`
+        `${template.raw?.from || '[unknown]'}. Error: ${e.message}`
       );
     }
   }

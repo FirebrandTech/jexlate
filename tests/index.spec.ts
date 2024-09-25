@@ -62,17 +62,6 @@ describe('Jexlate', () => {
     const result = jexlate.parse({ companies: [{ name: 'Acme Inc' }] });
     expect(result).toEqual({ Companies: [{ Name: 'Acme Inc' }] });
   });
-  it('should throw an error if a required field is missing', () => {
-    const jexlate = new Jexlate({
-      FirstName: {
-        from: 'first_name',
-        required: true,
-      },
-    });
-    expect(() => jexlate.parse({})).toThrow(
-      'Required fields are missing or invalid: FirstName'
-    );
-  });
   it('should evaluate an if statement', () => {
     const jexlate = new Jexlate({
       Age: {
@@ -83,7 +72,38 @@ describe('Jexlate', () => {
     const result = jexlate.parse({ age: 24 });
     expect(result).toEqual({});
   });
+  it('should throw an error if a required field is missing', () => {
+    expect.assertions(1);
+    const jexlate = new Jexlate({
+      FirstName: {
+        from: 'first_name',
+        required: true,
+      },
+    });
+    try {
+      jexlate.parse({});
+    } catch (e) {
+      expect(JSON.parse(e.message).required[0]).toBe('FirstName');
+    }
+  });
+  it('should evaluate a validation statement', () => {
+    expect.assertions(2);
+    const jexlate = new Jexlate({
+      Age: {
+        from: 'age',
+        validate: 'age > 25',
+      },
+    });
+    try {
+      jexlate.parse({ age: 24 });
+    } catch (e) {
+      const obj = JSON.parse(e.message).invalid[0].Age;
+      expect(obj.test).toBe('age > 25');
+      expect(obj.value).toBe(24);
+    }
+  });
   it('should evaluate an if and required statement to ensure condition are met', () => {
+    expect.assertions(1);
     const jexlate = new Jexlate({
       Age: {
         from: 'age',
@@ -91,9 +111,11 @@ describe('Jexlate', () => {
         required: true,
       },
     });
-    expect(() => jexlate.parse({ age: 24 })).toThrow(
-      'Required fields are missing or invalid: Age'
-    );
+    try {
+      jexlate.parse({ age: 24 });
+    } catch (e) {
+      expect(JSON.parse(e.message).required[0]).toBe('Age');
+    }
   });
   it('should support jexl custom functions', () => {
     const jexlate = new Jexlate(

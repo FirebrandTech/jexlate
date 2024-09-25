@@ -242,6 +242,32 @@ const data = {
 
 // Throws an error because 'last_name' is missing
 const transformedData = jexlate.transform(data);
+
+// JSON contained in the error object:
+// { required: ['last_name'] }
+```
+
+### Validation
+
+Jexlate can be configured to validate the transformed data using a JSON schema. If the transformed data does not match the schema, an error will be thrown. Validation uses Jexl syntax, functions, and binary operators.
+
+```typescript
+const template = {
+  Age: {
+    from: 'age',
+    validate: 'age > 25',
+  },
+};
+
+const data = {
+  age: 24,
+};
+
+// Throws an error because 'age' is less than 25
+const transformedData = jexlate.transform(data);
+
+// JSON contained in the error object:
+// { invalid: [{ test: 'age > 25', value: 24 }] }
 ```
 
 ### Static Values
