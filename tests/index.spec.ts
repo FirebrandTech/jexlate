@@ -227,4 +227,43 @@ describe('Jexlate', () => {
     stream.write({ first_name: 'John', last_name: 'Doe' });
     stream.end();
   });
+  it('should throw an error if onError is set to `throw`', (done) => {
+    expect.assertions(1);
+    const jexlate = new Jexlate({
+      FirstName: {
+        from: 'first_name',
+        required: true,
+      },
+    });
+    const stream = jexlate.stream({ onError: 'throw' });
+    stream.on('error', (err) => {
+      expect(JSON.parse(err.message).required[0]).toBe('FirstName');
+      done();
+    });
+    stream.write({});
+    stream.end();
+  });
+  it('should collect errors if onError is set to `collect`', (done) => {
+    const jexlate = new Jexlate({
+      FirstName: {
+        from: 'first_name',
+        required: true,
+      },
+    });
+    const errorCollector = [];
+    const stream = jexlate.stream({
+      onError: 'continue',
+      errorCollector,
+    });
+    let out = [];
+    stream.on('data', (chunk) => {
+      out.push(chunk);
+    });
+    stream.on('end', () => {
+      expect(errorCollector[0].required[0]).toEqual('FirstName');
+      done();
+    });
+    stream.write({});
+    stream.end();
+  });
 });

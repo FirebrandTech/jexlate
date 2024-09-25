@@ -104,6 +104,21 @@ const writableStream = someWritableStream();
 readableStream.pipe(jexlateTransformStream).pipe(writableStream);
 ```
 
+### Stream Options
+
+The `stream` method accepts an optional `options` object as the first argument. The following options are available:
+
+```typescript
+const options = {
+  onError: string<throw | collect>
+  errorCollector: []
+};
+```
+
+By default the stream will throw on any validation or processing errors. If you want to continue the stream and collect errors, you can set `onError` to `collect`.
+
+An optional `errorCollector` array can be passed to collect errors when `onError` is set to `collect`.
+
 ## Operations and Configation
 
 ### Basic Transformations

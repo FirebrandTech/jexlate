@@ -58,6 +58,11 @@ export interface JexlateConfig {
   binaryOps?: JexlateBinaryOp;
 }
 
+export interface JexlateStreamOptions {
+  onError?: 'throw' | 'continue';
+  errorCollector?: unknown;
+}
+
 export class Jexlate<T extends TemplateMapping> {
   private template: T;
   private requiredCollector: string[];
@@ -354,21 +359,42 @@ export class Jexlate<T extends TemplateMapping> {
     return template;
   }
 
-  public stream(): JexlateTransformStream {
-    return new JexlateTransformStream(this);
+  public stream(opts?: JexlateStreamOptions): JexlateTransformStream {
+    return new JexlateTransformStream(this, opts || {});
   }
 }
 
 class JexlateTransformStream extends Transform {
   private Jexlate: Jexlate<TemplateMapping>;
+  private onError: 'continue' | 'throw';
+  private errorCollector: any = [];
 
-  constructor(Jexlate: Jexlate<TemplateMapping>) {
+  constructor(
+    Jexlate: Jexlate<TemplateMapping>,
+    options?: JexlateStreamOptions
+  ) {
     super({ objectMode: true });
     this.Jexlate = Jexlate;
+    this.onError = options?.onError || 'throw';
+    this.errorCollector = options?.errorCollector || [];
+
+    if (this.onError && !this.errorCollector) {
+      throw new Error('Collector must be provided when using onError: collect');
+    }
   }
 
   _transform(chunk: any, encoding: string, callback: TransformCallback) {
-    this.push(this.Jexlate.parse(chunk));
-    callback();
+    try {
+      const res = this.Jexlate.parse(chunk);
+      this.push(res);
+      callback();
+    } catch (e) {
+      if (this.onError === 'throw') {
+        return callback(e);
+      } else {
+        this.errorCollector.push(JSON.parse(e.message));
+        callback();
+      }
+    }
   }
 }
