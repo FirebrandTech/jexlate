@@ -15,6 +15,7 @@ export type TemplateField = {
 // Define a type for arrays in the template
 export type TemplateArray = {
   from: string; // Must contain '[]' to indicate an array
+  splitOn?: string; // Optional delimiter to split the array
   values: TemplateMapping; // The structure for each item in the array
   raw: Record<string, string>;
   if?: string | Expression;
@@ -197,7 +198,9 @@ export class Jexlate<T extends TemplateMapping> {
     const arrayKey = template.raw?.from.replace('[]', '');
 
     // Get the array data from the input
-    const arrayData = data[arrayKey];
+    const arrayData = template.splitOn
+      ? data[arrayKey].split(template.splitOn).map((item) => ({ value: item }))
+      : data[arrayKey];
 
     if (!Array.isArray(arrayData)) {
       throw new Error(

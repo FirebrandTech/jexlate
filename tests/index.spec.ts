@@ -62,6 +62,23 @@ describe('Jexlate', () => {
     const result = jexlate.parse({ companies: [{ name: 'Acme Inc' }] });
     expect(result).toEqual({ Companies: [{ Name: 'Acme Inc' }] });
   });
+  it('should perform a transform on an array from a split', () => {
+    const jexlate = new Jexlate({
+      Companies: {
+        from: 'companies[]',
+        splitOn: ',',
+        values: {
+          Name: {
+            from: 'value',
+          },
+        },
+      },
+    });
+    const result = jexlate.parse({ companies: 'Acme Inc,Widget Co' });
+    expect(result).toEqual({
+      Companies: [{ Name: 'Acme Inc' }, { Name: 'Widget Co' }],
+    });
+  });
   it('should evaluate an if statement', () => {
     const jexlate = new Jexlate({
       Age: {

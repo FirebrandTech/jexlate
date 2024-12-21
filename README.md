@@ -206,6 +206,39 @@ const template = {
  */
 ```
 
+#### Splitting Arrays from String Values
+
+Arrays can be created and acted on from string values by using the `splitOn` property:
+
+```typescript
+const data = {
+  tags: 'tag1,tag2,tag3',
+};
+
+const template = {
+  Tags: {
+    from: 'tags[]',
+    splitOn: ',',
+    values: {
+      TagName: {
+        from: 'value',
+      },
+    },
+  },
+};
+
+/**
+ * transformedData:
+ * {
+ *   Tags: [
+ *     { TagName: 'tag1' },
+ *     { TagName: 'tag2' },
+ *     { TagName: 'tag3' },
+ *   ],
+ * }
+ */
+```
+
 ### Conditional Transformations
 
 Jexlate supports conditional transformations using the `if` key in the template.
