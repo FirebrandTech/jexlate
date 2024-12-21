@@ -199,7 +199,9 @@ export class Jexlate<T extends TemplateMapping> {
 
     // Get the array data from the input
     const arrayData = template.splitOn
-      ? data[arrayKey].split(template.splitOn).map((item) => ({ value: item }))
+      ? data[arrayKey]
+          .split(template.splitOn)
+          .map((item: string) => ({ value: item.trim() }))
       : data[arrayKey];
 
     if (!Array.isArray(arrayData)) {

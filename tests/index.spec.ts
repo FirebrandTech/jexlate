@@ -74,7 +74,7 @@ describe('Jexlate', () => {
         },
       },
     });
-    const result = jexlate.parse({ companies: 'Acme Inc,Widget Co' });
+    const result = jexlate.parse({ companies: 'Acme Inc, Widget Co' });
     expect(result).toEqual({
       Companies: [{ Name: 'Acme Inc' }, { Name: 'Widget Co' }],
     });
