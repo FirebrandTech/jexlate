@@ -79,6 +79,23 @@ describe('Jexlate', () => {
       Companies: [{ Name: 'Acme Inc' }, { Name: 'Widget Co' }],
     });
   });
+  it('should return an empty array from a split with no values', () => {
+    const jexlate = new Jexlate({
+      Companies: {
+        from: 'companies[]',
+        splitOn: ',',
+        values: {
+          Name: {
+            from: 'value',
+          },
+        },
+      },
+    });
+    const result = jexlate.parse({ companies: '' });
+    expect(result).toEqual({
+      Companies: [],
+    });
+  });
   it('should evaluate an if statement', () => {
     const jexlate = new Jexlate({
       Age: {
